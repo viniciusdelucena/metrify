@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#111827">
+<title>Metrify</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2322c55e' d='M13.5 2 4.5 13.5H11L10 22l9-11.5h-6.5L13.5 2Z'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#f3f4f6; --card:#ffffff; --text:#111827; --muted:#6b7280;
+    --line:#e5e7eb; --accent:#111827; --good:#047857; --bad:#b91c1c;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0b0f14; --card:#151b23; --text:#f3f4f6; --muted:#9ca3af;
+           --line:#263040; --accent:#f3f4f6; --good:#34d399; --bad:#f87171; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+       padding:0 16px 90px}
+  header{max-width:560px;margin:0 auto;padding:18px 0 8px}
+  h1{font-size:20px;margin:0}
+  .brand{display:flex;align-items:center;gap:8px;font-size:24px;letter-spacing:-.02em}
+  .bolt{width:30px;height:30px;fill:#22c55e;flex:none}
+  main{max-width:560px;margin:0 auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+        padding:16px;margin:12px 0}
+  label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+  input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;
+        background:var(--bg);color:var(--text);font-size:16px}
+  button{font:inherit;border:0;border-radius:10px;padding:12px 16px;cursor:pointer;
+         background:var(--accent);color:var(--bg);font-weight:600}
+  button.sec{background:transparent;color:var(--text);border:1px solid var(--line)}
+  button.danger{background:transparent;color:var(--bad);border:1px solid var(--line)}
+  button.small{padding:6px 10px;font-size:13px}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+  .stack{display:grid;gap:8px}
+  .line{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:15px}
+  .line span:first-child{color:var(--muted)}
+  .big{font-size:28px;font-weight:700}
+  .good{color:var(--good)} .bad{color:var(--bad)}
+  .liq{border-top:1px solid var(--line);margin-top:8px;padding-top:10px}
+  nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);
+      border-top:1px solid var(--line);display:flex;justify-content:center}
+  nav .inner{display:flex;width:100%;max-width:560px}
+  nav button{flex:1;background:transparent;color:var(--muted);border-radius:0;padding:16px 8px}
+  nav button.on{color:var(--text);box-shadow:inset 0 -3px 0 var(--accent)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .stat{background:var(--bg);border-radius:10px;padding:10px}
+  .stat small{color:var(--muted);display:block;font-size:12px}
+  .stat b{font-size:18px}
+  .item{border-top:1px solid var(--line);padding:12px 0}
+  .item:first-child{border-top:0}
+  .item .top{display:flex;justify-content:space-between;font-weight:600}
+  .item .sub{color:var(--muted);font-size:13px;margin-top:2px}
+  .cfg{display:grid;grid-template-columns:1fr 100px auto;gap:6px;margin-bottom:6px;align-items:center}
+  .hint{color:var(--muted);font-size:13px;margin:6px 0 0}
+  .hide{display:none}
+  details.sem{border-top:1px solid var(--line)}
+  details.sem:first-child{border-top:0}
+  details.sem>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;
+        align-items:center;gap:10px;padding:12px 0;font-weight:600}
+  details.sem>summary::-webkit-details-marker{display:none}
+  details.sem>summary .sw::before{content:"▸";display:inline-block;width:1.1em;color:var(--muted)}
+  details.sem[open]>summary .sw::before{content:"▾"}
+  details.sem>summary small{display:block;font-weight:400;color:var(--muted);font-size:13px;margin-left:1.1em}
+  details.sem .item:first-child{border-top:1px solid var(--line)}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;
+         justify-content:center;padding:20px;z-index:50}
+  .modal.hide{display:none}
+  .modal .box{background:var(--card);border:1px solid var(--line);border-radius:14px;
+              padding:18px;width:100%;max-width:360px}
+  .modal p{margin:0 0 16px}
+  .modal button.dang{background:var(--bad);color:#fff}
+</style>
+</head>
+<body>
+<header>
+  <h1 class="brand">
+    <svg class="bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 2 4.5 13.5H11L10 22l9-11.5h-6.5L13.5 2Z"/></svg>
+    <span>Metrify</span>
+  </h1>
+</header>
+<main>
+
+  <!-- NOVO / EDITAR -->
+  <section id="tab-novo">
+    <div class="card">
+      <strong id="formTitle">Registrar o dia</strong>
+      <label for="data">Data</label>
+      <input id="data" type="date">
+      <div class="row">
+        <div><label for="km">Km rodados</label>
+          <input id="km" inputmode="decimal" placeholder="0"></div>
+        <div><label for="bruto">Ganho bruto (R$)</label>
+          <input id="bruto" inputmode="decimal" placeholder="0,00"></div>
+      </div>
+      <label for="energia">Energia / combustível (R$)</label>
+      <input id="energia" inputmode="decimal" placeholder="0,00">
+      <label for="outros">Outros gastos do dia (R$) — opcional</label>
+      <input id="outros" inputmode="decimal" placeholder="0,00">
+      <p class="hint">Ex.: lavagem, pedágio, alimentação.</p>
+    </div>
+
+    <div class="card">
+      <strong>Conta do dia</strong>
+      <div id="breakdown" style="margin-top:8px"></div>
+      <div class="line liq">
+        <span><b>Líquido</b></span>
+        <span class="big" id="liquido">R$ 0,00</span>
+      </div>
+    </div>
+
+    <div class="stack">
+      <button id="btnSalvar">Salvar dia</button>
+      <button id="btnCancelar" class="sec hide">Cancelar edição</button>
+    </div>
+  </section>
+
+  <!-- HISTÓRICO -->
+  <section id="tab-hist" class="hide">
+    <div class="card">
+      <label for="mes" style="margin-top:0">Período</label>
+      <select id="mes"></select>
+      <div class="grid2" id="resumo" style="margin-top:12px"></div>
+    </div>
+    <div class="card" id="lista"></div>
+  </section>
+
+  <!-- AJUSTES -->
+  <section id="tab-cfg" class="hide">
+    <div class="card">
+      <strong>Custos por km</strong>
+      <p class="hint">Multiplicados pelos km rodados no dia (ex.: Pneu = 0,07 por km).</p>
+      <div id="cfgKm" style="margin-top:10px"></div>
+      <button class="sec small" id="addKm">+ Adicionar custo por km</button>
+    </div>
+    <div class="card">
+      <strong>Custos fixos por dia</strong>
+      <p class="hint">Descontados todo dia trabalhado, independente dos km.</p>
+      <div id="cfgFix" style="margin-top:10px"></div>
+      <button class="sec small" id="addFix">+ Adicionar custo fixo</button>
+    </div>
+    <div class="card">
+      <strong>Backup dos dados</strong>
+      <p class="hint">Os dados ficam salvos só neste aparelho/navegador. Se limpar os dados do navegador, eles somem. Exporte um backup de vez em quando.</p>
+      <div class="stack" style="margin-top:10px">
+        <button class="sec" id="expJson">Baixar backup (.json)</button>
+        <button class="sec" id="expCsv">Baixar planilha (.csv)</button>
+        <button class="sec" id="impJson">Restaurar backup…</button>
+        <input type="file" id="file" accept="application/json,.json" class="hide">
+      </div>
+    </div>
+    <p class="hint" style="text-align:center">Mudar os custos aqui vale só para os próximos dias. Os dias já salvos mantêm os valores da época.</p>
+  </section>
+
+</main>
+
+<div id="modal" class="modal hide" role="dialog" aria-modal="true">
+  <div class="box">
+    <p id="modalMsg"></p>
+    <div class="row">
+      <button id="modalNo" class="sec">Cancelar</button>
+      <button id="modalOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<nav><div class="inner">
+  <button data-tab="novo" class="on">➕ Novo</button>
+  <button data-tab="hist">📋 Histórico</button>
+  <button data-tab="cfg">⚙️ Ajustes</button>
+</div></nav>
+
+<script>
+(() => {
+  const KEY = 'diario-motorista-v1';
+  const DEFAULT_CFG = {
+    perKm: [{ nome: 'Pneu', valor: 0.07 }],
+    fixos: [{ nome: 'Impostos / crédito do celular / etc.', valor: 16.05 }]
+  };
+
+  // ---------- util ----------
+  const $ = s => document.querySelector(s);
+  const brl = n => (n < 0 ? '-' : '') + 'R$ ' + Math.abs(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const hoje = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+  const fmtData = iso => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
+  const nomeMes = ym => { const [y, m] = ym.split('-'); const t = new Date(+y, +m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
+  const clone = o => JSON.parse(JSON.stringify(o));
+
+  // Caixa de diálogo própria (alert/confirm do navegador são bloqueados em alguns ambientes)
+  function dialog(msg, opts = {}) {
+    return new Promise(resolve => {
+      const box = $('#modal'), ok = $('#modalOk'), no = $('#modalNo');
+      $('#modalMsg').textContent = msg;
+      ok.textContent = opts.ok || 'OK';
+      ok.className = opts.danger ? 'dang' : '';
+      no.textContent = opts.cancel || 'Cancelar';
+      no.classList.toggle('hide', !opts.cancel);
+      box.classList.remove('hide');
+      const close = v => { box.classList.add('hide'); ok.onclick = null; no.onclick = null; resolve(v); };
+      ok.onclick = () => close(true);
+      no.onclick = () => close(false);
+    });
+  }
+
+  // ---------- estado / persistência ----------
+  function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY));
+      if (s && s.config && Array.isArray(s.dias)) return s;
+    } catch (e) {}
+    return { config: clone(DEFAULT_CFG), dias: [] };
+  }
+  let state = load();
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (e) { dialog('Não consegui salvar neste navegador. Baixe um backup nos Ajustes.'); }
+  }
+
+  // ---------- cálculo ----------
+  function calc(d) {
+    const porKm = d.custos.perKm.map(c => ({ nome: c.nome, valor: c.valor * d.km }));
+    const fixos = d.custos.fixos.map(c => ({ nome: c.nome, valor: c.valor }));
+    const totKm = porKm.reduce((a, c) => a + c.valor, 0);
+    const totFix = fixos.reduce((a, c) => a + c.valor, 0);
+    const energia = d.energia || 0, outros = d.outros || 0;
+    const total = totKm + totFix + energia + outros;
+    return { porKm, fixos, totKm, totFix, energia, outros, total, liquido: d.bruto - total };
+  }
+
+  // ---------- abas ----------
+  function showTab(t) {
+    ['novo', 'hist', 'cfg'].forEach(x => $('#tab-' + x).classList.toggle('hide', x !== t));
+    document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+    if (t === 'hist') renderHist();
+    if (t === 'cfg') renderCfg();
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+  // ---------- formulário ----------
+  let editando = null; // dia sendo editado (com snapshot de custos)
+
+  function lerForm() {
+    return {
+      data: $('#data').value,
+      km: num($('#km').value),
+      bruto: num($('#bruto').value),
+      energia: num($('#energia').value),
+      outros: num($('#outros').value),
+      custos: editando ? editando.custos : clone(state.config)
+    };
+  }
+
+  function renderConta() {
+    const d = lerForm();
+    const c = calc(d);
+    let h = '';
+    c.porKm.forEach(x => h += `<div class="line"><span>${esc(x.nome)}</span><span>${brl(x.valor)}</span></div>`);
+    c.fixos.forEach(x => h += `<div class="line"><span>${esc(x.nome)}</span><span>${brl(x.valor)}</span></div>`);
+    if (d.energia) h += `<div class="line"><span>Energia / combustível</span><span>${brl(d.energia)}</span></div>`;
+    if (d.outros) h += `<div class="line"><span>Outros gastos</span><span>${brl(d.outros)}</span></div>`;
+    h += `<div class="line"><span><b>Total de custos</b></span><span><b>${brl(c.total)}</b></span></div>`;
+    $('#breakdown').innerHTML = h;
+    const el = $('#liquido');
+    el.textContent = brl(c.liquido);
+    el.className = 'big ' + (c.liquido >= 0 ? 'good' : 'bad');
+  }
+
+  function limparForm() {
+    editando = null;
+    $('#data').value = hoje();
+    $('#km').value = ''; $('#bruto').value = ''; $('#energia').value = ''; $('#outros').value = '';
+    $('#formTitle').textContent = 'Registrar o dia';
+    $('#btnSalvar').textContent = 'Salvar dia';
+    $('#btnCancelar').classList.add('hide');
+    renderConta();
+  }
+
+  ['#data', '#km', '#bruto', '#energia', '#outros'].forEach(s => $(s).addEventListener('input', renderConta));
+
+  $('#btnSalvar').onclick = async () => {
+    const f = lerForm();
+    if (!f.data) return dialog('Escolha a data.');
+    if (f.km <= 0 && f.bruto <= 0) return dialog('Informe os km e/ou o ganho bruto.');
+    const existente = state.dias.find(d => d.data === f.data);
+    if (existente && existente !== editando &&
+        !(await dialog('Já existe um registro em ' + fmtData(f.data) + '. Substituir?', { ok: 'Substituir', cancel: 'Cancelar' }))) return;
+    if (editando) state.dias = state.dias.filter(d => d !== editando);
+    state.dias = state.dias.filter(d => d.data !== f.data);
+    state.dias.push(f);
+    state.dias.sort((a, b) => b.data.localeCompare(a.data));
+    if (!abertas) abertas = new Set();
+    abertas.add(segunda(f.data)); // deixa aberta a semana do dia salvo
+    save();
+    limparForm();
+    showTab('hist');
+  };
+  $('#btnCancelar').onclick = () => { limparForm(); showTab('hist'); };
+
+  function editar(data) {
+    const d = state.dias.find(x => x.data === data);
+    if (!d) return;
+    editando = d;
+    $('#data').value = d.data;
+    $('#km').value = String(d.km).replace('.', ',');
+    $('#bruto').value = String(d.bruto).replace('.', ',');
+    $('#energia').value = d.energia ? String(d.energia).replace('.', ',') : '';
+    $('#outros').value = d.outros ? String(d.outros).replace('.', ',') : '';
+    $('#formTitle').textContent = 'Editando ' + fmtData(d.data);
+    $('#btnSalvar').textContent = 'Salvar alterações';
+    $('#btnCancelar').classList.remove('hide');
+    renderConta();
+    showTab('novo');
+  }
+
+  async function apagar(data) {
+    if (!(await dialog('Apagar o registro de ' + fmtData(data) + '?', { ok: 'Apagar', cancel: 'Cancelar', danger: true }))) return;
+    state.dias = state.dias.filter(d => d.data !== data);
+    save(); limparForm(); renderHist();
+  }
+
+  // ---------- histórico ----------
+  const DIAS_SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const isoParaUTC = iso => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+  function segunda(iso) { // data (AAAA-MM-DD) da segunda-feira da semana
+    const dt = isoParaUTC(iso);
+    dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7));
+    return dt.toISOString().slice(0, 10);
+  }
+  function rotuloSemana(seg) {
+    const a = isoParaUTC(seg), b = isoParaUTC(seg);
+    b.setUTCDate(b.getUTCDate() + 6);
+    const ma = MESES_ABREV[a.getUTCMonth()], mb = MESES_ABREV[b.getUTCMonth()];
+    return a.getUTCMonth() === b.getUTCMonth()
+      ? `${a.getUTCDate()} a ${b.getUTCDate()} ${mb}`
+      : `${a.getUTCDate()} ${ma} a ${b.getUTCDate()} ${mb}`;
+  }
+  let abertas = null;          // semanas abertas (null = abrir só a mais recente)
+  let filtroAnterior = null;
+
+  function renderHist() {
+    const meses = [...new Set(state.dias.map(d => d.data.slice(0, 7)))].sort().reverse();
+    const sel = $('#mes');
+    const atual = sel.value;
+    const anos = [...new Set(state.dias.map(d => d.data.slice(0, 4)))].sort().reverse();
+    sel.innerHTML = '<option value="todos">Tudo</option>' +
+      (anos.length ? '<optgroup label="Por ano">' + anos.map(a => `<option value="${a}">Ano ${a}</option>`).join('') + '</optgroup>' : '') +
+      (meses.length ? '<optgroup label="Por mês">' + meses.map(m => `<option value="${m}">${nomeMes(m)}</option>`).join('') + '</optgroup>' : '');
+    const validos = ['todos', ...anos, ...meses];
+    sel.value = validos.includes(atual) ? atual : (meses[0] || 'todos');
+    if (filtroAnterior !== null && filtroAnterior !== sel.value) abertas = null; // mudou o período
+    filtroAnterior = sel.value;
+
+    const dias = state.dias.filter(d => sel.value === 'todos' || d.data.startsWith(sel.value));
+    let km = 0, bruto = 0, custos = 0, liq = 0;
+    dias.forEach(d => { const c = calc(d); km += d.km; bruto += d.bruto; custos += c.total; liq += c.liquido; });
+    const n = dias.length;
+    const stat = (t, v, cls = '') => `<div class="stat"><small>${t}</small><b class="${cls}">${v}</b></div>`;
+    $('#resumo').innerHTML =
+      stat('Líquido', brl(liq), liq >= 0 ? 'good' : 'bad') +
+      stat('Bruto', brl(bruto)) +
+      stat('Custos', brl(custos)) +
+      stat('Km rodados', km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })) +
+      stat('Dias trabalhados', n) +
+      stat('Líquido médio/dia', n ? brl(liq / n) : '—') +
+      stat('Líquido por km', km ? brl(liq / km) : '—') +
+      stat('Bruto por km', km ? brl(bruto / km) : '—');
+
+    if (!n) { $('#lista').innerHTML = '<p class="hint" style="margin:0">Nenhum dia registrado ainda.</p>'; return; }
+    const itemHtml = d => {
+      const c = calc(d);
+      return `<div class="item" data-d="${d.data}">
+        <div class="top"><span>${DIAS_SEM[isoParaUTC(d.data).getUTCDay()]} ${fmtData(d.data)}</span><span class="${c.liquido >= 0 ? 'good' : 'bad'}">${brl(c.liquido)}</span></div>
+        <div class="sub">${d.km.toLocaleString('pt-BR')} km · bruto ${brl(d.bruto)} · custos ${brl(c.total)}</div>
+        <div class="row" style="margin-top:8px;gap:6px">
+          <button class="sec small" data-act="edit">Editar</button>
+          <button class="danger small" data-act="del">Apagar</button>
+        </div></div>`;
+    };
+
+    // agrupa por semana (segunda a domingo), da mais recente para a mais antiga
+    const grupos = new Map();
+    [...dias].sort((a, b) => b.data.localeCompare(a.data)).forEach(d => {
+      const k = segunda(d.data);
+      if (!grupos.has(k)) grupos.set(k, []);
+      grupos.get(k).push(d);
+    });
+    const chaves = [...grupos.keys()];
+    if (!abertas) abertas = new Set([chaves[0]]); // por padrão só a semana mais recente fica aberta
+
+    $('#lista').innerHTML = chaves.map(k => {
+      const g = grupos.get(k);
+      let liqS = 0, kmS = 0;
+      g.forEach(d => { liqS += calc(d).liquido; kmS += d.km; });
+      return `<details class="sem" data-w="${k}" ${abertas.has(k) ? 'open' : ''}>
+        <summary>
+          <span class="sw">Semana de ${rotuloSemana(k)}
+            <small>${g.length} ${g.length === 1 ? 'dia' : 'dias'} · ${kmS.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km</small></span>
+          <span class="${liqS >= 0 ? 'good' : 'bad'}">${brl(liqS)}</span>
+        </summary>
+        <div>${g.map(itemHtml).join('')}</div>
+      </details>`;
+    }).join('');
+  }
+  $('#lista').addEventListener('toggle', e => {
+    const w = e.target && e.target.dataset && e.target.dataset.w;
+    if (!w || !abertas) return;
+    if (e.target.open) abertas.add(w); else abertas.delete(w);
+  }, true);
+  $('#mes').onchange = renderHist;
+  $('#lista').onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const data = b.closest('.item').dataset.d;
+    if (b.dataset.act === 'edit') editar(data);
+    if (b.dataset.act === 'del') apagar(data);
+  };
+
+  // ---------- ajustes ----------
+  function renderCfgList(el, lista, tipo) {
+    el.innerHTML = lista.map((c, i) => `
+      <div class="cfg" data-t="${tipo}" data-i="${i}">
+        <input class="n" value="${esc(c.nome)}" placeholder="Nome">
+        <input class="v" inputmode="decimal" value="${String(c.valor).replace('.', ',')}">
+        <button class="danger small" data-rm="1">✕</button>
+      </div>`).join('') || '<p class="hint">Nenhum item.</p>';
+  }
+  function renderCfg() {
+    renderCfgList($('#cfgKm'), state.config.perKm, 'perKm');
+    renderCfgList($('#cfgFix'), state.config.fixos, 'fixos');
+  }
+  function onCfgEvent(e) {
+    const row = e.target.closest('.cfg'); if (!row) return;
+    const lista = state.config[row.dataset.t], i = +row.dataset.i;
+    if (e.type === 'click' && e.target.dataset.rm) {
+      lista.splice(i, 1); save(); renderCfg(); renderConta(); return;
+    }
+    if (e.type === 'input') {
+      lista[i].nome = row.querySelector('.n').value;
+      lista[i].valor = num(row.querySelector('.v').value);
+      save(); renderConta();
+    }
+  }
+  ['#cfgKm', '#cfgFix'].forEach(s => { $(s).addEventListener('input', onCfgEvent); $(s).addEventListener('click', onCfgEvent); });
+  $('#addKm').onclick = () => { state.config.perKm.push({ nome: 'Novo custo', valor: 0 }); save(); renderCfg(); };
+  $('#addFix').onclick = () => { state.config.fixos.push({ nome: 'Novo custo', valor: 0 }); save(); renderCfg(); };
+
+  // ---------- backup ----------
+  function baixar(nome, conteudo, tipo) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
+    a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  $('#expJson').onclick = () => baixar(`metrify-backup-${hoje()}.json`, JSON.stringify(state, null, 2), 'application/json');
+  $('#expCsv').onclick = () => {
+    const f = n => n.toFixed(2).replace('.', ',');
+    const linhas = [['Data', 'Km', 'Bruto', 'Custos por km', 'Custos fixos', 'Energia', 'Outros', 'Total custos', 'Líquido'].join(';')];
+    [...state.dias].sort((a, b) => a.data.localeCompare(b.data)).forEach(d => {
+      const c = calc(d);
+      linhas.push([fmtData(d.data), String(d.km).replace('.', ','), f(d.bruto), f(c.totKm), f(c.totFix), f(c.energia), f(c.outros), f(c.total), f(c.liquido)].join(';'));
+    });
+    baixar(`metrify-${hoje()}.csv`, '﻿' + linhas.join('\n'), 'text/csv;charset=utf-8');
+  };
+  $('#impJson').onclick = () => $('#file').click();
+  $('#file').onchange = e => {
+    const file = e.target.files[0]; if (!file) return;
+    const r = new FileReader();
+    r.onload = async () => {
+      let s;
+      try {
+        s = JSON.parse(r.result);
+        if (!s.config || !Array.isArray(s.dias)) throw 0;
+      } catch (_) { return dialog('Arquivo de backup inválido.'); }
+      if (!(await dialog(`Restaurar backup com ${s.dias.length} dia(s)? Isso substitui os dados atuais.`, { ok: 'Restaurar', cancel: 'Cancelar' }))) return;
+      state = s; save(); limparForm(); renderCfg(); renderHist();
+      dialog('Backup restaurado.');
+    };
+    r.readAsText(file); e.target.value = '';
+  };
+
+  // ---------- início ----------
+  limparForm();
+})();
+</script>
+</body>
+</html>
