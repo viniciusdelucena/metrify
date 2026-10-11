@@ -385,15 +385,15 @@
         </div></div>`;
     };
 
-    // agrupa por semana (segunda a domingo), da mais recente para a mais antiga
+    // agrupa por semana (segunda a domingo), em ordem crescente: primeira semana e primeiro dia no topo
     const grupos = new Map();
-    [...dias].sort((a, b) => b.data.localeCompare(a.data)).forEach(d => {
+    [...dias].sort((a, b) => a.data.localeCompare(b.data)).forEach(d => {
       const k = segunda(d.data);
       if (!grupos.has(k)) grupos.set(k, []);
       grupos.get(k).push(d);
     });
     const chaves = [...grupos.keys()];
-    if (!abertas) abertas = new Set([chaves[0]]); // por padrão só a semana mais recente fica aberta
+    if (!abertas) abertas = new Set([chaves[chaves.length - 1]]); // por padrão só a semana mais recente fica aberta
 
     $('#lista').innerHTML = chaves.map(k => {
       const g = grupos.get(k);
