@@ -19,7 +19,9 @@
   body{margin:0;background:var(--bg);color:var(--text);
        font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
        padding:0 16px 90px}
-  header{max-width:560px;margin:0 auto;padding:18px 0 8px}
+  header{max-width:560px;margin:0 auto;padding:18px 0 8px;display:flex;align-items:center;
+         justify-content:space-between;gap:10px}
+  .conta{font-size:12px;color:var(--muted);white-space:nowrap}
   h1{font-size:20px;margin:0}
   .brand{display:flex;align-items:center;gap:8px;font-size:24px;letter-spacing:-.02em}
   .bolt{width:30px;height:30px;fill:#22c55e;flex:none}
@@ -74,6 +76,15 @@
               padding:18px;width:100%;max-width:360px}
   .modal p{margin:0 0 16px}
   .modal button.dang{background:var(--bad);color:#fff}
+  button:disabled{opacity:.5;cursor:default}
+  .gate{position:fixed;inset:0;background:var(--bg);z-index:40;display:flex;align-items:center;
+        justify-content:center;padding:24px}
+  .gate.hide{display:none}
+  .gate .box{width:100%;max-width:360px;text-align:center}
+  .gate .bolt{width:56px;height:56px}
+  .gate h2{margin:8px 0 6px;font-size:28px;letter-spacing:-.02em}
+  .gate p{color:var(--muted);margin:0 0 20px}
+  .gate .stack{margin-top:4px}
 </style>
 </head>
 <body>
@@ -82,6 +93,7 @@
     <svg class="bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 2 4.5 13.5H11L10 22l9-11.5h-6.5L13.5 2Z"/></svg>
     <span>Metrify</span>
   </h1>
+  <span id="conta" class="conta"></span>
 </header>
 <main>
 
@@ -132,6 +144,11 @@
   <!-- AJUSTES -->
   <section id="tab-cfg" class="hide">
     <div class="card">
+      <strong>Conta</strong>
+      <p class="hint" id="contaInfo"></p>
+      <div class="stack" style="margin-top:10px" id="contaBtns"></div>
+    </div>
+    <div class="card">
       <strong>Custos por km</strong>
       <p class="hint">Multiplicados pelos km rodados no dia (ex.: Pneu = 0,07 por km).</p>
       <div id="cfgKm" style="margin-top:10px"></div>
@@ -145,7 +162,7 @@
     </div>
     <div class="card">
       <strong>Backup dos dados</strong>
-      <p class="hint">Os dados ficam salvos só neste aparelho/navegador. Se limpar os dados do navegador, eles somem. Exporte um backup de vez em quando.</p>
+      <p class="hint" id="bkHint"></p>
       <div class="stack" style="margin-top:10px">
         <button class="sec" id="expJson">Baixar backup (.json)</button>
         <button class="sec" id="expCsv">Baixar planilha (.csv)</button>
@@ -157,6 +174,19 @@
   </section>
 
 </main>
+
+<div id="gate" class="gate">
+  <div class="box">
+    <svg class="bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 2 4.5 13.5H11L10 22l9-11.5h-6.5L13.5 2Z"/></svg>
+    <h2>Metrify</h2>
+    <p id="gateMsg">Carregando…</p>
+    <div class="stack">
+      <button id="gateGoogle" disabled>Entrar com Google</button>
+      <button id="gateLocal" class="sec">Usar sem conta (só neste aparelho)</button>
+    </div>
+    <p class="hint" style="margin-top:14px">Se o login do Google não abrir, saia do navegador interno (WhatsApp, Instagram etc.) e abra o endereço no Chrome ou no Safari.</p>
+  </div>
+</div>
 
 <div id="modal" class="modal hide" role="dialog" aria-modal="true">
   <div class="box">
@@ -176,7 +206,18 @@
 
 <script>
 (() => {
-  const KEY = 'diario-motorista-v1';
+  const KEY = 'diario-motorista-v1';   // dados do modo "sem conta" (só neste aparelho)
+  const PREF = 'metrify-modo';          // lembra a escolha "usar sem conta"
+  const FB_VERSAO = '10.12.2';
+  const firebaseConfig = {
+    apiKey: "AIzaSyCve5qiui7PXqO7PzVnV67UmjO43OID0sw",
+    authDomain: "metrify-32153.firebaseapp.com",
+    projectId: "metrify-32153",
+    storageBucket: "metrify-32153.firebasestorage.app",
+    messagingSenderId: "689372040779",
+    appId: "1:689372040779:web:c3b52770dfa8dd79db47ce",
+    measurementId: "G-45R3223XV8"
+  };
   const DEFAULT_CFG = {
     perKm: [{ nome: 'Pneu', valor: 0.07 }],
     fixos: [{ nome: 'Impostos / crédito do celular / etc.', valor: 16.05 }]
@@ -209,18 +250,258 @@
   }
 
   // ---------- estado / persistência ----------
-  function load() {
+  let state = { config: clone(DEFAULT_CFG), dias: [] };
+  let modo = null;   // 'local' (só neste aparelho) | 'nuvem' (conta Google) | null (ainda na tela de entrada)
+
+  function load() { // lê os dados salvos neste aparelho (modo sem conta)
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
       if (s && s.config && Array.isArray(s.dias)) return s;
     } catch (e) {}
     return { config: clone(DEFAULT_CFG), dias: [] };
   }
-  let state = load();
-  function save() {
+  function salvarLocal() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); }
     catch (e) { dialog('Não consegui salvar neste navegador. Baixe um backup nos Ajustes.'); }
   }
+  function normalizarDia(o) {
+    const ok = o.custos && Array.isArray(o.custos.perKm) && Array.isArray(o.custos.fixos);
+    return {
+      data: o.data, km: +o.km || 0, bruto: +o.bruto || 0,
+      energia: +o.energia || 0, outros: +o.outros || 0,
+      custos: ok ? clone(o.custos) : clone(state.config)
+    };
+  }
+
+  // ---------- nuvem (Firebase: login Google + Firestore) ----------
+  let F = null;              // funções do Firebase, depois de carregadas
+  let fbCarregando = null;
+  let authIniciado = false;
+  let uidAtual = null, emailAtual = '';
+  let unsubDias = null, unsubCfg = null;
+  let cfgSujo = false, cfgVersao = 0, tCfg = null;
+  let erroAvisado = false;
+
+  function carregarFirebase() {
+    if (fbCarregando) return fbCarregando;
+    fbCarregando = (async () => {
+      const base = 'https://www.gstatic.com/firebasejs/' + FB_VERSAO + '/';
+      const [app, auth, fs] = await Promise.all([
+        import(base + 'firebase-app.js'),
+        import(base + 'firebase-auth.js'),
+        import(base + 'firebase-firestore.js')
+      ]);
+      const a = app.initializeApp(firebaseConfig);
+      let db;
+      try { // cópia local dos dados: o app continua funcionando sem internet
+        db = fs.initializeFirestore(a, { localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }) });
+      } catch (e) { db = fs.getFirestore(a); }
+      F = { ...auth, ...fs, auth: auth.getAuth(a), db };
+    })();
+    fbCarregando.catch(() => { fbCarregando = null; }); // permite tentar de novo
+    return fbCarregando;
+  }
+  async function prepararNuvem() {
+    await carregarFirebase();
+    if (!authIniciado) { authIniciado = true; F.onAuthStateChanged(F.auth, onAuth); }
+  }
+
+  const refDia = data => F.doc(F.db, 'usuarios', uidAtual, 'dias', data);
+  const refCfg = () => F.doc(F.db, 'usuarios', uidAtual, 'config', 'geral');
+
+  function erroNuvem(e) {
+    console.error(e);
+    const c = (e && e.code) || '';
+    dialog(c === 'permission-denied'
+      ? 'O banco de dados recusou a gravação. Confira se as regras de segurança do Firestore foram publicadas.'
+      : 'Não consegui sincronizar com a nuvem (' + (c || (e && e.message) || 'erro') + '). Seus dados continuam salvos neste aparelho e tentam enviar de novo quando possível.');
+  }
+  function erroListener(e) {
+    console.error(e);
+    if (erroAvisado) return;
+    erroAvisado = true;
+    atualizarConta('Erro de sincronização');
+    dialog(e && e.code === 'permission-denied'
+      ? 'O Firestore recusou o acesso. Confira se o banco foi criado e se as regras de segurança foram publicadas.'
+      : 'Erro ao sincronizar (' + ((e && e.code) || 'desconhecido') + ').');
+  }
+
+  // Todas as gravações passam por aqui: local (sem conta) ou nuvem (com conta)
+  function persistirDia(dia, antiga) {
+    if (modo !== 'nuvem') return salvarLocal();
+    if (antiga && antiga !== dia.data) F.deleteDoc(refDia(antiga)).catch(erroNuvem);
+    F.setDoc(refDia(dia.data), clone(dia)).catch(erroNuvem);
+  }
+  function persistirApagar(data) {
+    if (modo !== 'nuvem') return salvarLocal();
+    F.deleteDoc(refDia(data)).catch(erroNuvem);
+  }
+  function persistirConfig() {
+    if (modo !== 'nuvem') return salvarLocal();
+    cfgSujo = true;
+    const v = ++cfgVersao;
+    clearTimeout(tCfg);
+    tCfg = setTimeout(() => {
+      F.setDoc(refCfg(), clone(state.config)).catch(erroNuvem)
+        .finally(() => { if (v === cfgVersao) cfgSujo = false; });
+    }, 600);
+  }
+  async function gravarLote(pares) { // [[ref, dados], ...] em lotes de 400
+    for (let i = 0; i < pares.length; i += 400) {
+      const b = F.writeBatch(F.db);
+      pares.slice(i, i + 400).forEach(([ref, dado]) => b.set(ref, dado));
+      await b.commit();
+    }
+  }
+
+  function iniciarListeners() {
+    unsubDias = F.onSnapshot(F.collection(F.db, 'usuarios', uidAtual, 'dias'), { includeMetadataChanges: true }, snap => {
+      state.dias = snap.docs
+        .map(d => normalizarDia({ ...d.data(), data: d.id }))
+        .sort((a, b) => b.data.localeCompare(a.data));
+      atualizarConta(snap.metadata.hasPendingWrites ? 'Sincronizando…' : (snap.metadata.fromCache ? 'Conectando…' : 'Sincronizado'));
+      if (!$('#tab-hist').classList.contains('hide')) renderHist();
+    }, erroListener);
+    unsubCfg = F.onSnapshot(refCfg(), snap => {
+      if (cfgSujo || snap.metadata.hasPendingWrites) return; // são mudanças feitas agora, neste aparelho
+      if (snap.exists()) {
+        const c = snap.data();
+        if (Array.isArray(c.perKm) && Array.isArray(c.fixos)) state.config = { perKm: c.perKm, fixos: c.fixos };
+      }
+      renderConta();
+      const ae = document.activeElement;
+      const digitando = ae && ae.tagName === 'INPUT' && $('#tab-cfg').contains(ae);
+      if (!$('#tab-cfg').classList.contains('hide') && !digitando) renderCfg();
+    }, erroListener);
+  }
+  function pararNuvem() {
+    if (unsubDias) unsubDias();
+    if (unsubCfg) unsubCfg();
+    unsubDias = unsubCfg = null;
+    clearTimeout(tCfg); cfgSujo = false;
+    uidAtual = null; emailAtual = ''; erroAvisado = false;
+  }
+
+  // Na primeira entrada, oferece enviar para a conta o que já estava salvo neste aparelho
+  async function migrarLocal() {
+    const flag = KEY + '-migrado-' + uidAtual;
+    const marcar = () => { try { localStorage.setItem(flag, '1'); } catch (_) {} };
+    try { if (localStorage.getItem(flag)) return; } catch (_) {}
+    const local = load();
+    if (!local.dias.length) return;
+    const ok = await dialog('Encontrei ' + local.dias.length + ' dia(s) salvo(s) neste aparelho. Enviar para a sua conta Google?', { ok: 'Enviar', cancel: 'Agora não' });
+    if (!ok) return marcar();
+    try {
+      const snap = await F.getDocsFromServer(F.collection(F.db, 'usuarios', uidAtual, 'dias'));
+      const existentes = new Set(snap.docs.map(d => d.id));
+      const novos = local.dias.filter(d => d.data && !existentes.has(d.data));
+      await gravarLote(novos.map(d => [refDia(d.data), clone(normalizarDia(d))]));
+      const cfg = await F.getDocFromServer(refCfg()).catch(() => null);
+      if (cfg && !cfg.exists()) await F.setDoc(refCfg(), clone(local.config));
+      marcar();
+      await dialog(novos.length + ' dia(s) enviado(s) para a sua conta.' + (novos.length < local.dias.length ? ' Os demais já existiam na conta e foram mantidos.' : ''));
+    } catch (e) { erroNuvem(e); }
+  }
+
+  async function entrarNuvem(user) {
+    if (modo === 'nuvem' && uidAtual === user.uid) return;
+    pararNuvem();
+    modo = 'nuvem'; uidAtual = user.uid; emailAtual = user.email || '';
+    try { localStorage.removeItem(PREF); } catch (_) {}
+    state = { config: clone(DEFAULT_CFG), dias: [] };
+    esconderGate();
+    atualizarConta('Conectando…');
+    await migrarLocal();
+    if (uidAtual !== user.uid) return; // saiu durante a migração
+    iniciarListeners();
+    abertas = null; filtroAnterior = null;
+    limparForm(); renderAtual();
+  }
+  function sairNuvem() {
+    pararNuvem();
+    modo = null;
+    state = { config: clone(DEFAULT_CFG), dias: [] };
+    abertas = null; filtroAnterior = null;
+    limparForm(); renderAtual(); atualizarConta();
+    mostrarGate('login');
+  }
+  function entrarLocal(lembrar) {
+    modo = 'local';
+    state = load();
+    if (lembrar) { try { localStorage.setItem(PREF, 'local'); } catch (_) {} }
+    esconderGate();
+    abertas = null; filtroAnterior = null;
+    limparForm(); renderAtual(); atualizarConta();
+  }
+  async function onAuth(user) {
+    if (user) await entrarNuvem(user);
+    else if (modo === 'nuvem') sairNuvem();
+    else if (modo !== 'local') mostrarGate('login');
+  }
+
+  async function entrarGoogle() {
+    try {
+      await prepararNuvem();
+      const provider = new F.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await F.signInWithPopup(F.auth, provider);
+    } catch (e) {
+      const c = e && e.code;
+      if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') return;
+      if (!F) return dialog('Não consegui carregar o serviço de login. Verifique a internet e tente de novo.');
+      const msgs = {
+        'auth/unauthorized-domain': 'Este endereço ainda não está autorizado no Firebase. Adicione "' + location.hostname + '" em Authentication → Configurações → Domínios autorizados.',
+        'auth/popup-blocked': 'O navegador bloqueou a janela de login. Permita pop-ups para este site e tente de novo.',
+        'auth/operation-not-allowed': 'O login com Google não está ativado no Firebase (Authentication → Método de login).',
+        'auth/network-request-failed': 'Sem conexão com a internet. Tente de novo.'
+      };
+      dialog(msgs[c] || 'Não consegui entrar (' + (c || (e && e.message) || 'erro') + '). Se estiver abrindo por dentro do WhatsApp, Instagram ou similar, abra o endereço no Chrome ou no Safari.');
+    }
+  }
+  async function sair() {
+    if (!(await dialog('Sair da conta? Seus dados continuam salvos na nuvem.', { ok: 'Sair', cancel: 'Cancelar' }))) return;
+    try { await F.signOut(F.auth); } catch (e) { erroNuvem(e); }
+  }
+
+  // ---------- tela de entrada e indicadores de conta ----------
+  function mostrarGate(estado) {
+    $('#gateMsg').textContent = {
+      carregando: 'Carregando…',
+      login: 'Entre com sua conta Google para guardar seus dados na nuvem e ver os mesmos registros no celular e no computador.',
+      offline: 'Não consegui carregar o serviço de login. Verifique a internet e tente de novo.'
+    }[estado];
+    $('#gateGoogle').disabled = estado === 'carregando';
+    $('#gate').classList.remove('hide');
+  }
+  function esconderGate() { $('#gate').classList.add('hide'); }
+  function atualizarConta(txt) {
+    const el = $('#conta');
+    if (modo === 'nuvem') el.textContent = '☁️ ' + (txt || 'Sincronizado');
+    else if (modo === 'local') el.textContent = '📱 Só neste aparelho';
+    else el.textContent = '';
+  }
+  function renderContaCard() {
+    const info = $('#contaInfo'), btns = $('#contaBtns'), bk = $('#bkHint');
+    if (modo === 'nuvem') {
+      info.textContent = 'Conectado como ' + (emailAtual || 'sua conta Google') + '. Seus dados ficam salvos na nuvem e aparecem em qualquer aparelho em que você entrar com esta conta.';
+      btns.innerHTML = '<button class="sec" id="btnSair">Sair da conta</button>';
+      $('#btnSair').onclick = sair;
+      bk.textContent = 'Seus dados já ficam na sua conta. O backup é opcional, para guardar uma cópia sua.';
+    } else {
+      info.textContent = 'Você está usando o app sem conta: os dados ficam só neste aparelho e navegador, e não aparecem em outros aparelhos.';
+      btns.innerHTML = '<button id="btnEntrar">Entrar com Google para sincronizar</button>';
+      $('#btnEntrar').onclick = entrarGoogle;
+      bk.textContent = 'Os dados ficam salvos só neste aparelho/navegador. Se limpar os dados do navegador, eles somem. Exporte um backup de vez em quando.';
+    }
+  }
+  function renderAtual() {
+    renderConta();
+    if (!$('#tab-hist').classList.contains('hide')) renderHist();
+    if (!$('#tab-cfg').classList.contains('hide')) renderCfg();
+    renderContaCard();
+  }
+  $('#gateGoogle').onclick = entrarGoogle;
+  $('#gateLocal').onclick = () => entrarLocal(true);
 
   // ---------- cálculo ----------
   function calc(d) {
@@ -288,16 +569,17 @@
     const f = lerForm();
     if (!f.data) return dialog('Escolha a data.');
     if (f.km <= 0 && f.bruto <= 0) return dialog('Informe os km e/ou o ganho bruto.');
+    const antiga = editando ? editando.data : null; // data original, caso ela tenha sido trocada na edição
     const existente = state.dias.find(d => d.data === f.data);
-    if (existente && existente !== editando &&
+    if (existente && existente.data !== antiga &&
         !(await dialog('Já existe um registro em ' + fmtData(f.data) + '. Substituir?', { ok: 'Substituir', cancel: 'Cancelar' }))) return;
-    if (editando) state.dias = state.dias.filter(d => d !== editando);
+    if (antiga) state.dias = state.dias.filter(d => d.data !== antiga);
     state.dias = state.dias.filter(d => d.data !== f.data);
     state.dias.push(f);
     state.dias.sort((a, b) => b.data.localeCompare(a.data));
     if (!abertas) abertas = new Set();
     abertas.add(segunda(f.data)); // deixa aberta a semana do dia salvo
-    save();
+    persistirDia(f, antiga);
     limparForm();
     showTab('hist');
   };
@@ -322,7 +604,7 @@
   async function apagar(data) {
     if (!(await dialog('Apagar o registro de ' + fmtData(data) + '?', { ok: 'Apagar', cancel: 'Cancelar', danger: true }))) return;
     state.dias = state.dias.filter(d => d.data !== data);
-    save(); limparForm(); renderHist();
+    persistirApagar(data); limparForm(); renderHist();
   }
 
   // ---------- histórico ----------
@@ -439,17 +721,17 @@
     const row = e.target.closest('.cfg'); if (!row) return;
     const lista = state.config[row.dataset.t], i = +row.dataset.i;
     if (e.type === 'click' && e.target.dataset.rm) {
-      lista.splice(i, 1); save(); renderCfg(); renderConta(); return;
+      lista.splice(i, 1); persistirConfig(); renderCfg(); renderConta(); return;
     }
     if (e.type === 'input') {
       lista[i].nome = row.querySelector('.n').value;
       lista[i].valor = num(row.querySelector('.v').value);
-      save(); renderConta();
+      persistirConfig(); renderConta();
     }
   }
   ['#cfgKm', '#cfgFix'].forEach(s => { $(s).addEventListener('input', onCfgEvent); $(s).addEventListener('click', onCfgEvent); });
-  $('#addKm').onclick = () => { state.config.perKm.push({ nome: 'Novo custo', valor: 0 }); save(); renderCfg(); };
-  $('#addFix').onclick = () => { state.config.fixos.push({ nome: 'Novo custo', valor: 0 }); save(); renderCfg(); };
+  $('#addKm').onclick = () => { state.config.perKm.push({ nome: 'Novo custo', valor: 0 }); persistirConfig(); renderCfg(); };
+  $('#addFix').onclick = () => { state.config.fixos.push({ nome: 'Novo custo', valor: 0 }); persistirConfig(); renderCfg(); };
 
   // ---------- backup ----------
   function baixar(nome, conteudo, tipo) {
@@ -478,8 +760,21 @@
         s = JSON.parse(r.result);
         if (!s.config || !Array.isArray(s.dias)) throw 0;
       } catch (_) { return dialog('Arquivo de backup inválido.'); }
+      if (modo === 'nuvem') { // com conta: envia o backup para a nuvem
+        if (!Array.isArray(s.config.perKm) || !Array.isArray(s.config.fixos)) return dialog('Arquivo de backup inválido.');
+        if (!(await dialog(`Importar ${s.dias.length} dia(s) do backup para a sua conta? Dias com a mesma data serão substituídos.`, { ok: 'Importar', cancel: 'Cancelar' }))) return;
+        try {
+          const dias = s.dias.filter(d => d && typeof d.data === 'string').map(normalizarDia);
+          state.config = clone(s.config);
+          await gravarLote(dias.map(d => [refDia(d.data), clone(d)]));
+          await F.setDoc(refCfg(), clone(state.config));
+          renderAtual();
+          dialog('Backup importado.');
+        } catch (err) { erroNuvem(err); }
+        return;
+      }
       if (!(await dialog(`Restaurar backup com ${s.dias.length} dia(s)? Isso substitui os dados atuais.`, { ok: 'Restaurar', cancel: 'Cancelar' }))) return;
-      state = s; save(); limparForm(); renderCfg(); renderHist();
+      state = s; salvarLocal(); limparForm(); renderCfg(); renderHist();
       dialog('Backup restaurado.');
     };
     r.readAsText(file); e.target.value = '';
@@ -487,6 +782,13 @@
 
   // ---------- início ----------
   limparForm();
+  (async function iniciar() {
+    let pref = null;
+    try { pref = localStorage.getItem(PREF); } catch (_) {}
+    if (pref === 'local') entrarLocal(false); else mostrarGate('carregando');
+    try { await prepararNuvem(); }
+    catch (e) { console.error(e); if (modo !== 'local') mostrarGate('offline'); }
+  })();
 })();
 </script>
 </body>
