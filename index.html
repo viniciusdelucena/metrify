@@ -77,6 +77,10 @@
   .modal p{margin:0 0 16px}
   .modal button.dang{background:var(--bad);color:#fff}
   button:disabled{opacity:.5;cursor:default}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;
+        color:var(--text);font-weight:500;font-size:14px}
+  .chip.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
   .gate{position:fixed;inset:0;background:var(--bg);z-index:40;display:flex;align-items:center;
         justify-content:center;padding:24px}
   .gate.hide{display:none}
@@ -134,8 +138,17 @@
   <!-- HISTÓRICO -->
   <section id="tab-hist" class="hide">
     <div class="card">
-      <label for="mes" style="margin-top:0">Período</label>
-      <select id="mes"></select>
+      <strong>Período</strong>
+      <div class="chips" id="chips" style="margin-top:10px"></div>
+      <div id="mesano" class="row hide" style="margin-top:10px">
+        <select id="selAno" aria-label="Ano"></select>
+        <select id="selMes" aria-label="Mês"></select>
+      </div>
+      <div id="custom" class="row hide" style="margin-top:2px">
+        <div><label for="de">De</label><input id="de" type="date"></div>
+        <div><label for="ate">Até</label><input id="ate" type="date"></div>
+      </div>
+      <p class="hint" id="periodoTxt" style="margin:10px 0 0"></p>
       <div class="grid2" id="resumo" style="margin-top:12px"></div>
     </div>
     <div class="card" id="lista"></div>
@@ -414,14 +427,14 @@
     await migrarLocal();
     if (uidAtual !== user.uid) return; // saiu durante a migração
     iniciarListeners();
-    abertas = null; filtroAnterior = null;
+    abertas = new Set();
     limparForm(); renderAtual();
   }
   function sairNuvem() {
     pararNuvem();
     modo = null;
     state = { config: clone(DEFAULT_CFG), dias: [] };
-    abertas = null; filtroAnterior = null;
+    abertas = new Set();
     limparForm(); renderAtual(); atualizarConta();
     mostrarGate('login');
   }
@@ -430,7 +443,7 @@
     state = load();
     if (lembrar) { try { localStorage.setItem(PREF, 'local'); } catch (_) {} }
     esconderGate();
-    abertas = null; filtroAnterior = null;
+    abertas = new Set();
     limparForm(); renderAtual(); atualizarConta();
   }
   async function onAuth(user) {
@@ -577,8 +590,6 @@
     state.dias = state.dias.filter(d => d.data !== f.data);
     state.dias.push(f);
     state.dias.sort((a, b) => b.data.localeCompare(a.data));
-    if (!abertas) abertas = new Set();
-    abertas.add(segunda(f.data)); // deixa aberta a semana do dia salvo
     persistirDia(f, antiga);
     limparForm();
     showTab('hist');
@@ -624,38 +635,87 @@
       ? `${a.getUTCDate()} a ${b.getUTCDate()} ${mb}`
       : `${a.getUTCDate()} ${ma} a ${b.getUTCDate()} ${mb}`;
   }
-  let abertas = null;          // semanas abertas (null = abrir só a mais recente)
-  let filtroAnterior = null;
+  let abertas = new Set();     // semanas que o usuário abriu (por padrão todas ficam recolhidas)
+
+  // ----- filtro de período -----
+  let filtro = { tipo: 'ult30', ano: null, mes: 'todos', de: '', ate: '' };
+  const CHIPS = [['ult7', 'Últimos 7 dias'], ['ult30', 'Últimos 30 dias'], ['mes', 'Este mês'], ['mespassado', 'Mês passado'],
+                 ['ano', 'Este ano'], ['tudo', 'Tudo'], ['mesano', 'Mês/ano'], ['custom', 'Personalizado']];
+  const NOMES_MES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const p2 = n => String(n).padStart(2, '0');
+  const addDias = (iso, n) => { const d = isoParaUTC(iso); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const ultimoDiaMes = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate(); // m de 1 a 12
+  const faixaMes = (y, m) => [`${y}-${p2(m)}-01`, `${y}-${p2(m)}-${p2(ultimoDiaMes(+y, +m))}`];
+
+  function intervalo() { // [início, fim] inclusivos (AAAA-MM-DD); null = todos os registros
+    const h = hoje(), Y = +h.slice(0, 4), M = +h.slice(5, 7);
+    switch (filtro.tipo) {
+      case 'ult7': return [addDias(h, -6), h];
+      case 'ult30': return [addDias(h, -29), h];
+      case 'mes': return faixaMes(Y, M);
+      case 'mespassado': return M === 1 ? faixaMes(Y - 1, 12) : faixaMes(Y, M - 1);
+      case 'ano': return [`${Y}-01-01`, `${Y}-12-31`];
+      case 'mesano':
+        if (!filtro.ano) return null;
+        return filtro.mes === 'todos' ? [`${filtro.ano}-01-01`, `${filtro.ano}-12-31`] : faixaMes(filtro.ano, filtro.mes);
+      case 'custom': {
+        const a = filtro.de || '0000-01-01', b = filtro.ate || '9999-12-31';
+        return a <= b ? [a, b] : [b, a];
+      }
+      default: return null;
+    }
+  }
+  function rotuloPeriodo() {
+    if (filtro.tipo === 'tudo') return 'Todos os registros';
+    if (filtro.tipo === 'custom') {
+      if (!filtro.de && !filtro.ate) return 'Escolha a data inicial e/ou a final.';
+      if (!filtro.de) return 'Até ' + fmtData(filtro.ate);
+      if (!filtro.ate) return 'A partir de ' + fmtData(filtro.de);
+    }
+    const r = intervalo();
+    return r ? fmtData(r[0]) + ' a ' + fmtData(r[1]) : '';
+  }
+  function renderFiltro() {
+    $('#chips').innerHTML = CHIPS.map(([t, n]) => `<button class="chip ${filtro.tipo === t ? 'on' : ''}" data-t="${t}">${n}</button>`).join('');
+    $('#mesano').classList.toggle('hide', filtro.tipo !== 'mesano');
+    $('#custom').classList.toggle('hide', filtro.tipo !== 'custom');
+    if (filtro.tipo === 'mesano') { // só aparecem anos e meses que têm registros
+      const anos = [...new Set(state.dias.map(d => d.data.slice(0, 4)))].sort().reverse();
+      if (!anos.length) anos.push(hoje().slice(0, 4));
+      if (!anos.includes(filtro.ano)) filtro.ano = anos[0];
+      const meses = [...new Set(state.dias.filter(d => d.data.startsWith(filtro.ano)).map(d => d.data.slice(5, 7)))].sort().reverse();
+      if (filtro.mes !== 'todos' && !meses.includes(filtro.mes)) filtro.mes = 'todos';
+      $('#selAno').innerHTML = anos.map(a => `<option value="${a}">${a}</option>`).join('');
+      $('#selAno').value = filtro.ano;
+      $('#selMes').innerHTML = '<option value="todos">Todos os meses</option>' + meses.map(m => `<option value="${m}">${NOMES_MES[+m - 1]}</option>`).join('');
+      $('#selMes').value = filtro.mes;
+    }
+    if ($('#de').value !== filtro.de) $('#de').value = filtro.de;
+    if ($('#ate').value !== filtro.ate) $('#ate').value = filtro.ate;
+  }
 
   function renderHist() {
-    const meses = [...new Set(state.dias.map(d => d.data.slice(0, 7)))].sort().reverse();
-    const sel = $('#mes');
-    const atual = sel.value;
-    const anos = [...new Set(state.dias.map(d => d.data.slice(0, 4)))].sort().reverse();
-    sel.innerHTML = '<option value="todos">Tudo</option>' +
-      (anos.length ? '<optgroup label="Por ano">' + anos.map(a => `<option value="${a}">Ano ${a}</option>`).join('') + '</optgroup>' : '') +
-      (meses.length ? '<optgroup label="Por mês">' + meses.map(m => `<option value="${m}">${nomeMes(m)}</option>`).join('') + '</optgroup>' : '');
-    const validos = ['todos', ...anos, ...meses];
-    sel.value = validos.includes(atual) ? atual : (meses[0] || 'todos');
-    if (filtroAnterior !== null && filtroAnterior !== sel.value) abertas = null; // mudou o período
-    filtroAnterior = sel.value;
-
-    const dias = state.dias.filter(d => sel.value === 'todos' || d.data.startsWith(sel.value));
-    let km = 0, bruto = 0, custos = 0, liq = 0;
-    dias.forEach(d => { const c = calc(d); km += d.km; bruto += d.bruto; custos += c.total; liq += c.liquido; });
+    renderFiltro();
+    const r = intervalo();
+    const dias = state.dias.filter(d => !r || (d.data >= r[0] && d.data <= r[1]));
+    $('#periodoTxt').textContent = rotuloPeriodo();
+    let km = 0, bruto = 0, custos = 0, liq = 0, energia = 0;
+    dias.forEach(d => { const c = calc(d); km += d.km; bruto += d.bruto; custos += c.total; liq += c.liquido; energia += c.energia; });
     const n = dias.length;
     const stat = (t, v, cls = '') => `<div class="stat"><small>${t}</small><b class="${cls}">${v}</b></div>`;
     $('#resumo').innerHTML =
       stat('Líquido', brl(liq), liq >= 0 ? 'good' : 'bad') +
       stat('Bruto', brl(bruto)) +
       stat('Custos', brl(custos)) +
+      stat('Energia / combustível', brl(energia)) +
       stat('Km rodados', km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })) +
       stat('Dias trabalhados', n) +
       stat('Líquido médio/dia', n ? brl(liq / n) : '—') +
       stat('Líquido por km', km ? brl(liq / km) : '—') +
-      stat('Bruto por km', km ? brl(bruto / km) : '—');
+      stat('Bruto por km', km ? brl(bruto / km) : '—') +
+      stat('Abastecimento por km', km ? brl(energia / km) : '—');
 
-    if (!n) { $('#lista').innerHTML = '<p class="hint" style="margin:0">Nenhum dia registrado ainda.</p>'; return; }
+    if (!n) { $('#lista').innerHTML = '<p class="hint" style="margin:0">' + (state.dias.length ? 'Nenhum dia registrado neste período.' : 'Nenhum dia registrado ainda.') + '</p>'; return; }
     const itemHtml = d => {
       const c = calc(d);
       return `<div class="item" data-d="${d.data}">
@@ -675,7 +735,6 @@
       grupos.get(k).push(d);
     });
     const chaves = [...grupos.keys()];
-    if (!abertas) abertas = new Set([chaves[chaves.length - 1]]); // por padrão só a semana mais recente fica aberta
 
     $('#lista').innerHTML = chaves.map(k => {
       const g = grupos.get(k);
@@ -696,7 +755,20 @@
     if (!w || !abertas) return;
     if (e.target.open) abertas.add(w); else abertas.delete(w);
   }, true);
-  $('#mes').onchange = renderHist;
+  const trocarFiltro = () => { abertas = new Set(); renderHist(); }; // mudou o período: semanas voltam recolhidas
+  $('#chips').onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    filtro.tipo = b.dataset.t;
+    if (filtro.tipo === 'mesano') { // começa no último mês com registros
+      const ult = state.dias.length ? state.dias.map(d => d.data).sort().pop() : hoje();
+      filtro.ano = ult.slice(0, 4); filtro.mes = ult.slice(5, 7);
+    }
+    trocarFiltro();
+  };
+  $('#selAno').onchange = () => { filtro.ano = $('#selAno').value; filtro.mes = 'todos'; trocarFiltro(); };
+  $('#selMes').onchange = () => { filtro.mes = $('#selMes').value; trocarFiltro(); };
+  $('#de').onchange = () => { filtro.de = $('#de').value; trocarFiltro(); };
+  $('#ate').onchange = () => { filtro.ate = $('#ate').value; trocarFiltro(); };
   $('#lista').onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
     const data = b.closest('.item').dataset.d;
