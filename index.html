@@ -221,7 +221,8 @@
     <h2>Metrify App</h2>
     <p id="gateMsg">Carregando…</p>
     <div class="stack">
-      <button id="gateLocal" disabled>Usar sem conta</button>
+      <button id="gateGoogle" disabled>Entrar com Google</button>
+      <button id="gateLocal" class="sec">Usar sem conta</button>
     </div>
     <p class="hint" style="margin-top:14px">Ao continuar, você concorda com a <a href="privacidade.html">Política de privacidade</a>.</p>
   </div>
@@ -461,7 +462,7 @@
     if (uidAtual !== user.uid) return; // saiu durante a migração
     iniciarListeners();
     abertas = new Set();
-    limparForm(); renderAtual();
+    limparForm(); renderAtual(); showTab('hist');
   }
   function sairNuvem() {
     pararNuvem();
@@ -477,7 +478,7 @@
     if (lembrar) { try { localStorage.setItem(PREF, 'local'); } catch (_) {} }
     esconderGate();
     abertas = new Set();
-    limparForm(); renderAtual(); atualizarConta();
+    limparForm(); renderAtual(); atualizarConta(); showTab('hist');
   }
   async function onAuth(user) {
     if (user) await entrarNuvem(user);
@@ -561,10 +562,10 @@
   function mostrarGate(estado) {
     $('#gateMsg').textContent = {
       carregando: 'Carregando…',
-      login: 'Registre seus ganhos e custos e acompanhe o lucro líquido. Depois, se quiser, conecte sua conta Google em Ajustes para proteger e sincronizar seus dados.',
-      offline: 'Registre seus ganhos e custos e acompanhe o lucro líquido. A conexão com a conta Google está indisponível no momento e pode ser feita depois, em Ajustes.'
+      login: 'Registre seus ganhos e custos e acompanhe o lucro líquido. Entre com o Google para manter seus dados protegidos e sincronizados, ou use o app sem conta.',
+      offline: 'Registre seus ganhos e custos e acompanhe o lucro líquido. O login com Google está indisponível no momento; você pode usar o app sem conta e conectar depois.'
     }[estado];
-    $('#gateLocal').disabled = estado === 'carregando';
+    $('#gateGoogle').disabled = estado === 'carregando';
     $('#gate').classList.remove('hide');
   }
   function esconderGate() { $('#gate').classList.add('hide'); }
@@ -584,9 +585,7 @@
       bk.textContent = 'Seus dados já ficam na sua conta. O backup é opcional, para guardar uma cópia sua.';
     } else {
       info.innerHTML = '<strong style="display:block;font-size:15px;color:var(--text);margin-bottom:4px">Proteja e sincronize seus dados</strong>'
-        + 'Hoje seus registros estão apenas neste aparelho: se ele for perdido, trocado, formatado ou o navegador for limpo, as informações não podem ser recuperadas. '
-        + 'Ao conectar sua conta Google, seus dados passam a ser salvos com segurança na nuvem, com backup automático, e ficam disponíveis no celular e no computador. '
-        + 'Os registros já existentes neste aparelho podem ser enviados durante a conexão.';
+        + 'Conectando sua conta Google, seus dados ficam salvos na nuvem, seguros em caso de perda do aparelho, e sincronizados entre dispositivos.';
       btns.innerHTML = '<button id="btnEntrar">Conectar com Google</button>';
       $('#btnEntrar').onclick = entrarGoogle;
       bk.textContent = 'Os dados ficam salvos só neste aparelho/navegador. Se limpar os dados do navegador, eles somem. Exporte um backup de vez em quando.';
@@ -598,6 +597,7 @@
     if (!$('#tab-cfg').classList.contains('hide')) renderCfg();
     renderContaCard();
   }
+  $('#gateGoogle').onclick = entrarGoogle;
   $('#gateLocal').onclick = () => entrarLocal(true);
 
   // ---------- cálculo ----------
