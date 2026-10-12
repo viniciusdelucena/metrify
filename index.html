@@ -68,6 +68,7 @@
   .cfg{display:grid;grid-template-columns:1fr 100px auto;gap:6px;margin-bottom:6px;align-items:center}
   .hint{color:var(--muted);font-size:13px;margin:6px 0 0}
   .hide{display:none}
+  .hint a{color:var(--text)}
   details.sem{border-top:1px solid var(--line)}
   details.sem:first-child{border-top:0}
   details.sem>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;
@@ -109,14 +110,14 @@
 <header>
   <h1 class="brand">
     <svg class="bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 2 4.5 13.5H11L10 22l9-11.5h-6.5L13.5 2Z"/></svg>
-    <span>Metrify App</span>
+    <span>Metrify</span>
   </h1>
   <span id="conta" class="conta"></span>
 </header>
 <main>
 
   <!-- NOVO / EDITAR -->
-  <section id="tab-novo">
+  <section id="tab-novo" class="hide">
     <div class="card">
       <strong id="formTitle">Registrar o dia</strong>
       <label for="data">Data</label>
@@ -150,7 +151,7 @@
   </section>
 
   <!-- HISTÓRICO -->
-  <section id="tab-hist" class="hide">
+  <section id="tab-hist">
     <div class="card">
       <strong>Período</strong>
       <div class="chips" id="chips" style="margin-top:10px"></div>
@@ -198,6 +199,7 @@
       </div>
     </div>
     <p class="hint" style="text-align:center">Mudar os custos aqui vale só para os próximos dias. Os dias já salvos mantêm os valores da época.</p>
+    <p class="hint" style="text-align:center"><a href="privacidade.html">Política de privacidade</a> · <a href="excluir-conta.html">Como excluir sua conta</a></p>
   </section>
 
 </main>
@@ -211,7 +213,8 @@
       <button id="gateGoogle" disabled>Entrar com Google</button>
       <button id="gateLocal" class="sec">Usar sem conta (só neste aparelho)</button>
     </div>
-    <p class="hint" style="margin-top:14px">Se o login do Google não abrir, saia do navegador interno (WhatsApp, Instagram etc.) e abra o endereço no Chrome ou no Safari.</p>
+    <p class="hint" style="margin-top:14px">Ao entrar, você concorda com a <a href="privacidade.html">Política de privacidade</a>.</p>
+    <p class="hint" style="margin-top:8px">Se o login do Google não abrir, saia do navegador interno (WhatsApp, Instagram etc.) e abra o endereço no Chrome ou no Safari.</p>
   </div>
 </div>
 
@@ -231,8 +234,8 @@
 </div>
 
 <nav><div class="inner">
-  <button data-tab="novo" class="on">➕ Novo</button>
-  <button data-tab="hist">📋 Histórico</button>
+  <button data-tab="novo">➕ Novo</button>
+  <button data-tab="hist" class="on">📋 Histórico</button>
   <button data-tab="cfg">⚙️ Ajustes</button>
 </div></nav>
 
@@ -313,6 +316,7 @@
   let unsubDias = null, unsubCfg = null;
   let cfgSujo = false, cfgVersao = 0, tCfg = null;
   let erroAvisado = false;
+  let excluindo = false;     // durante a exclusão da conta, erros esperados de permissão não viram avisos
 
   function carregarFirebase() {
     if (fbCarregando) return fbCarregando;
@@ -343,6 +347,7 @@
 
   function erroNuvem(e) {
     console.error(e);
+    if (excluindo) return;
     const c = (e && e.code) || '';
     dialog(c === 'permission-denied'
       ? 'O banco de dados recusou a gravação. Confira se as regras de segurança do Firestore foram publicadas.'
@@ -350,7 +355,7 @@
   }
   function erroListener(e) {
     console.error(e);
-    if (erroAvisado) return;
+    if (excluindo || erroAvisado) return;
     erroAvisado = true;
     atualizarConta('Erro de sincronização');
     dialog(e && e.code === 'permission-denied'
@@ -495,6 +500,54 @@
     try { await F.signOut(F.auth); } catch (e) { erroNuvem(e); }
   }
 
+  // Exclui a conta e todos os dados dela (a Play Store exige essa opção dentro do app)
+  async function excluirConta() {
+    if (excluindo || modo !== 'nuvem' || !F || !F.auth.currentUser) return;
+    if (!(await dialog('Excluir a sua conta e TODOS os seus dados (dias, custos e a cópia salva neste aparelho)? Isso não pode ser desfeito. Se quiser guardar uma cópia, baixe o backup antes.', { ok: 'Continuar', cancel: 'Cancelar', danger: true }))) return;
+    if (!(await dialog('Última confirmação: depois disso não é possível recuperar nada. Você vai entrar com o Google mais uma vez, para confirmar que é você.', { ok: 'Excluir tudo', cancel: 'Voltar', danger: true }))) return;
+    const user = F.auth.currentUser, uid = user.uid, email = emailAtual;
+    excluindo = true;
+    try {
+      // 1) confirma a identidade (excluir a conta exige um login recente)
+      try { await F.reauthenticateWithPopup(user, new F.GoogleAuthProvider()); }
+      catch (e) {
+        const c = e && e.code;
+        if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') { await dialog('Exclusão cancelada. Nada foi apagado.'); return; }
+        if (c === 'auth/user-mismatch') { await dialog('Escolha a mesma conta Google com a qual você está conectado' + (email ? ' (' + email + ')' : '') + '. Nada foi apagado.'); return; }
+        throw e;
+      }
+      // 2) apaga os dados da nuvem (e para de acompanhar as mudanças)
+      pararNuvem();
+      atualizarConta('Excluindo…');
+      const snap = await F.getDocsFromServer(F.collection(F.db, 'usuarios', uid, 'dias'));
+      for (let i = 0; i < snap.docs.length; i += 400) {
+        const b = F.writeBatch(F.db);
+        snap.docs.slice(i, i + 400).forEach(d => b.delete(F.doc(F.db, 'usuarios', uid, 'dias', d.id)));
+        await b.commit();
+      }
+      await F.deleteDoc(F.doc(F.db, 'usuarios', uid, 'config', 'geral'));
+      // 3) exclui a conta
+      await F.deleteUser(user);
+      // 4) limpa o que ficou guardado neste aparelho
+      try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '-migrado-' + uid); localStorage.removeItem(PREF); } catch (_) {}
+      try { await F.terminate(F.db); await F.clearIndexedDbPersistence(F.db); } catch (_) {}
+      await dialog('Sua conta e todos os seus dados foram excluídos.');
+      location.reload();
+    } catch (e) {
+      console.error(e);
+      if (modo === 'nuvem' && F.auth.currentUser) { // falhou no meio: volta a sincronizar para o app não ficar parado
+        uidAtual = uid; emailAtual = email; erroAvisado = false;
+        iniciarListeners(); atualizarConta('Conectando…');
+      }
+      const c = e && e.code;
+      await dialog(c === 'auth/requires-recent-login'
+        ? 'Por segurança, saia da conta, entre de novo com o Google e tente excluir outra vez.'
+        : c === 'auth/network-request-failed'
+          ? 'Sem conexão com a internet. Parte dos dados pode já ter sido apagada. Conecte-se e tente de novo.'
+          : 'Não consegui concluir a exclusão (' + (c || (e && e.message) || 'erro') + '). Parte dos dados pode já ter sido apagada. Tente de novo.');
+    } finally { excluindo = false; }
+  }
+
   // ---------- tela de entrada e indicadores de conta ----------
   function mostrarGate(estado) {
     $('#gateMsg').textContent = {
@@ -516,8 +569,9 @@
     const info = $('#contaInfo'), btns = $('#contaBtns'), bk = $('#bkHint');
     if (modo === 'nuvem') {
       info.textContent = 'Conectado como ' + (emailAtual || 'sua conta Google') + '. Seus dados ficam salvos na nuvem e aparecem em qualquer aparelho em que você entrar com esta conta.';
-      btns.innerHTML = '<button class="sec" id="btnSair">Sair da conta</button>';
+      btns.innerHTML = '<button class="sec" id="btnSair">Sair da conta</button><button class="danger" id="btnExcluir">Excluir minha conta e dados</button>';
       $('#btnSair').onclick = sair;
+      $('#btnExcluir').onclick = excluirConta;
       bk.textContent = 'Seus dados já ficam na sua conta. O backup é opcional, para guardar uma cópia sua.';
     } else {
       info.textContent = 'Você está usando o app sem conta: os dados ficam só neste aparelho e navegador, e não aparecem em outros aparelhos.';
@@ -740,7 +794,12 @@
       stat('Bruto por km', km ? brl(bruto / km) : '—') +
       stat('Abastecimento por km', km ? brl(energia / km) : '—');
 
-    if (!n) { $('#lista').innerHTML = '<p class="hint" style="margin:0">' + (state.dias.length ? 'Nenhum dia registrado neste período.' : 'Nenhum dia registrado ainda.') + '</p>'; return; }
+    if (!n) {
+      $('#lista').innerHTML = state.dias.length
+        ? '<p class="hint" style="margin:0">Nenhum dia registrado neste período.</p>'
+        : '<p class="hint" style="margin:0 0 12px">Nenhum dia registrado ainda.</p><button data-go="novo">Registrar o primeiro dia</button>';
+      return;
+    }
     const itemHtml = d => {
       const c = calc(d);
       return `<div class="item" data-d="${d.data}">
@@ -796,7 +855,9 @@
   $('#ate').onchange = () => { filtro.ate = $('#ate').value; trocarFiltro(); };
   $('#lista').onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
-    const data = b.closest('.item').dataset.d;
+    if (b.dataset.go) return showTab(b.dataset.go); // botão "Registrar o primeiro dia"
+    const item = b.closest('.item'); if (!item) return;
+    const data = item.dataset.d;
     if (b.dataset.act === 'edit') editar(data);
     if (b.dataset.act === 'del') apagar(data);
   };

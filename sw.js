@@ -1,14 +1,15 @@
 // Service worker do Metrify
-// - Página principal (index.html): tenta a rede primeiro e usa a cópia guardada se estiver sem internet.
-//   Assim, atualizar o index.html no GitHub chega ao app sem precisar mexer neste arquivo.
+// - Páginas (index.html, privacidade.html, excluir-conta.html): tenta a rede primeiro e usa a cópia
+//   guardada se estiver sem internet. Assim, atualizar uma página no GitHub chega ao app sem mexer
+//   neste arquivo. Só a página do app ('/' e '/index.html') divide a mesma cópia guardada.
 // - Ícones e manifesto: usa a cópia guardada e atualiza em segundo plano.
 // - SDK do Firebase (www.gstatic.com): guardado após o primeiro uso, para o app abrir sem internet.
 // - Todo o resto (Firestore, login do Google) vai direto para a rede, sem interferência.
 // Se mudar a lógica deste arquivo, troque o número em VERSAO para limpar o cache antigo.
 
-const VERSAO = 'metrify-v1';
+const VERSAO = 'metrify-v2';
 const ARQUIVOS = [
-  './', './index.html', './manifest.webmanifest',
+  './', './index.html', './manifest.webmanifest', './privacidade.html', './excluir-conta.html',
   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'
 ];
 const LIMITE_REDE_MS = 4000;
@@ -28,14 +29,23 @@ self.addEventListener('activate', e => {
   })());
 });
 
+function ehPaginaDoApp(url) { // a tela principal do app: '/metrify/' ou '/metrify/index.html'
+  const p = new URL(url).pathname;
+  return p.endsWith('/') || p.endsWith('/index.html');
+}
+
 async function redePrimeiro(req) {
   const c = await caches.open(VERSAO);
+  const app = ehPaginaDoApp(req.url);
   let ruim = null;
   // A busca segue em segundo plano mesmo se o limite de tempo estourar, e atualiza a cópia guardada
   // (assim, numa internet lenta, a versão nova aparece na abertura seguinte).
   const busca = fetch(req.url, { cache: 'no-cache' }).then(r => {
-    if (r.ok) { // é sempre a mesma página: mantém todas as entradas ('/' e '/index.html') com a versão mais nova
-      c.put(req, r.clone()); c.put('./index.html', r.clone()); c.put('./', r.clone());
+    if (r.ok) {
+      c.put(req, r.clone());
+      if (app) { // '/' e '/index.html' são a mesma página: mantém as duas entradas com a versão mais nova
+        c.put('./index.html', r.clone()); c.put('./', r.clone());
+      }
     }
     return r;
   });
@@ -49,8 +59,7 @@ async function redePrimeiro(req) {
     ruim = r; // erro do servidor: prefere a cópia guardada, se houver
   } catch (_) {}
   return (await c.match(req, { ignoreSearch: true }))
-    || (await c.match('./index.html'))
-    || (await c.match('./'))
+    || (app ? ((await c.match('./index.html')) || (await c.match('./'))) : null) // só o app cai na cópia do app
     || ruim
     || Response.error();
 }
