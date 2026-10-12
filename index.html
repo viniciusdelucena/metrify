@@ -112,6 +112,16 @@
   .gate.hide{display:none}
   .gate .box{width:100%;max-width:360px;text-align:center}
   .gate .bolt{width:56px;height:56px}
+  .gate .bolt{overflow:visible;animation:faisca 2.6s ease-in-out infinite;transform-origin:50% 55%}
+  @keyframes faisca{
+    0%,100%{filter:drop-shadow(0 0 3px rgba(34,197,94,.45)) brightness(1);transform:scale(1)}
+    40%{filter:drop-shadow(0 0 9px rgba(34,197,94,.7)) brightness(1.1);transform:scale(1.03)}
+    46%{filter:drop-shadow(0 0 20px rgba(134,239,172,.95)) brightness(1.5);transform:scale(1.07)}
+    50%{filter:drop-shadow(0 0 5px rgba(34,197,94,.5)) brightness(1);transform:scale(1)}
+    54%{filter:drop-shadow(0 0 16px rgba(134,239,172,.85)) brightness(1.35);transform:scale(1.05)}
+    62%{filter:drop-shadow(0 0 4px rgba(34,197,94,.45)) brightness(1);transform:scale(1)}
+  }
+  @media (prefers-reduced-motion:reduce){.gate .bolt{animation:none;filter:drop-shadow(0 0 6px rgba(34,197,94,.5))}}
   .gate h2{margin:8px 0 6px;font-size:28px;letter-spacing:-.02em}
   .gate p{color:var(--muted);margin:0 0 20px}
   .gate .stack{margin-top:4px}
