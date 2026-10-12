@@ -27,7 +27,7 @@
        font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
        padding:0 16px calc(96px + env(safe-area-inset-bottom));
        font-variant-numeric:tabular-nums}
-  header{max-width:560px;margin:0 auto;padding:18px 0 8px;display:flex;flex-wrap:wrap;align-items:center;
+  header{max-width:560px;margin:0 auto;padding:18px 0 16px;display:flex;flex-wrap:wrap;align-items:center;
          justify-content:space-between;gap:10px}
   .conta{font-size:12px;color:var(--muted);white-space:nowrap}
   h1{font-size:20px;margin:0}
@@ -184,7 +184,7 @@
   <section id="tab-cfg" class="hide">
     <div class="card">
       <strong>Conta</strong>
-      <p class="hint" id="contaInfo"></p>
+      <div class="hint" id="contaInfo"></div>
       <div class="stack" style="margin-top:10px" id="contaBtns"></div>
     </div>
     <div class="card">
@@ -221,11 +221,9 @@
     <h2>Metrify App</h2>
     <p id="gateMsg">Carregando…</p>
     <div class="stack">
-      <button id="gateGoogle" disabled>Entrar com Google</button>
-      <button id="gateLocal" class="sec">Usar sem conta (só neste aparelho)</button>
+      <button id="gateLocal" disabled>Usar sem conta</button>
     </div>
-    <p class="hint" style="margin-top:14px">Ao entrar, você concorda com a <a href="privacidade.html">Política de privacidade</a>.</p>
-    <p class="hint" style="margin-top:8px">Se o login do Google não abrir, saia do navegador interno (WhatsApp, Instagram etc.) e abra o endereço no Chrome ou no Safari.</p>
+    <p class="hint" style="margin-top:14px">Ao continuar, você concorda com a <a href="privacidade.html">Política de privacidade</a>.</p>
   </div>
 </div>
 
@@ -563,10 +561,10 @@
   function mostrarGate(estado) {
     $('#gateMsg').textContent = {
       carregando: 'Carregando…',
-      login: 'Entre com sua conta Google para guardar seus dados na nuvem e ver os mesmos registros no celular e no computador.',
-      offline: 'Não consegui carregar o serviço de login. Verifique a internet e tente de novo.'
+      login: 'Registre seus ganhos e custos e acompanhe o lucro líquido. Depois, se quiser, conecte sua conta Google em Ajustes para proteger e sincronizar seus dados.',
+      offline: 'Registre seus ganhos e custos e acompanhe o lucro líquido. A conexão com a conta Google está indisponível no momento e pode ser feita depois, em Ajustes.'
     }[estado];
-    $('#gateGoogle').disabled = estado === 'carregando';
+    $('#gateLocal').disabled = estado === 'carregando';
     $('#gate').classList.remove('hide');
   }
   function esconderGate() { $('#gate').classList.add('hide'); }
@@ -585,8 +583,11 @@
       $('#btnExcluir').onclick = excluirConta;
       bk.textContent = 'Seus dados já ficam na sua conta. O backup é opcional, para guardar uma cópia sua.';
     } else {
-      info.textContent = 'Você está usando o app sem conta: os dados ficam só neste aparelho e navegador, e não aparecem em outros aparelhos.';
-      btns.innerHTML = '<button id="btnEntrar">Entrar com Google para sincronizar</button>';
+      info.innerHTML = '<strong style="display:block;font-size:15px;color:var(--text);margin-bottom:4px">Proteja e sincronize seus dados</strong>'
+        + 'Hoje seus registros estão apenas neste aparelho: se ele for perdido, trocado, formatado ou o navegador for limpo, as informações não podem ser recuperadas. '
+        + 'Ao conectar sua conta Google, seus dados passam a ser salvos com segurança na nuvem, com backup automático, e ficam disponíveis no celular e no computador. '
+        + 'Os registros já existentes neste aparelho podem ser enviados durante a conexão.';
+      btns.innerHTML = '<button id="btnEntrar">Conectar com Google</button>';
       $('#btnEntrar').onclick = entrarGoogle;
       bk.textContent = 'Os dados ficam salvos só neste aparelho/navegador. Se limpar os dados do navegador, eles somem. Exporte um backup de vez em quando.';
     }
@@ -597,7 +598,6 @@
     if (!$('#tab-cfg').classList.contains('hide')) renderCfg();
     renderContaCard();
   }
-  $('#gateGoogle').onclick = entrarGoogle;
   $('#gateLocal').onclick = () => entrarLocal(true);
 
   // ---------- cálculo ----------
