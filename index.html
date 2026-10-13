@@ -75,6 +75,13 @@
   .stat{background:var(--bg);border-radius:10px;padding:10px}
   .stat small{color:var(--muted);display:block;font-size:12px}
   .stat b{font-size:18px}
+  .sw{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:10px;cursor:pointer}
+  .sw input{position:absolute;opacity:0;width:1px;height:1px}
+  .sw .trilho{flex:none;width:46px;height:28px;border-radius:999px;background:rgba(127,127,127,.35);position:relative;transition:background .2s}
+  .sw .trilho::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .2s}
+  .sw input:checked + .trilho{background:#22c55e}
+  .sw input:checked + .trilho::after{transform:translateX(18px)}
+  .sw input:focus-visible + .trilho{outline:2px solid var(--text);outline-offset:2px}
   .stat .v{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:2px 6px}
   .stat .d{display:inline-flex;align-items:center;gap:2px;padding:1px 6px 1px 4px;border-radius:999px;font-size:11px;font-weight:600;line-height:16px;color:var(--muted);background:rgba(127,127,127,.14)}
   .stat .d.good{color:var(--good);background:rgba(34,197,94,.14)} .stat .d.bad{color:var(--bad);background:rgba(239,68,68,.14)}
@@ -226,6 +233,14 @@
       <button class="sec small" id="addFix">+ Adicionar custo fixo</button>
     </div>
     <div class="card">
+      <strong>Comparação com o período anterior</strong>
+      <label class="sw" for="swComparar">
+        <span class="hint" style="margin:0">Exibe, no Histórico, setas que indicam se cada indicador subiu ou caiu em relação ao período anterior.</span>
+        <input type="checkbox" id="swComparar" role="switch">
+        <span class="trilho" aria-hidden="true"></span>
+      </label>
+    </div>
+    <div class="card">
       <strong>Backup dos dados</strong>
       <p class="hint" id="bkHint"></p>
       <div class="stack" style="margin-top:10px">
@@ -278,6 +293,9 @@
 <script>
 (() => {
   const KEY = 'diario-motorista-v1';   // dados do modo "sem conta" (só neste aparelho)
+  const COMP = 'metrify-comparar';      // preferência (neste aparelho): mostrar setas de comparação, padrão desligado
+  let comparar = false;
+  try { comparar = localStorage.getItem(COMP) === '1'; } catch (_) {}
   const PREF = 'metrify-modo';          // lembra a escolha "usar sem conta"
   const FB_VERSAO = '10.12.2';
   const firebaseConfig = {
@@ -854,7 +872,7 @@
     // Comparação justa: o dia N do período atual é comparado com o dia N do período anterior (1º com 1º, 2º com 2º…),
     // e só entram os pares em que os dois dias têm registro. Assim, ter poucos dias no período anterior não distorce nada.
     const pares = [];
-    if (ra && n) {
+    if (comparar && ra && n) {
       const antPorData = new Map(state.dias.filter(d => d.data >= ra[0] && d.data <= ra[1]).map(d => [d.data, d]));
       dias.forEach(d => {
         const off = Math.round((isoParaUTC(d.data) - isoParaUTC(r[0])) / 864e5);
@@ -878,7 +896,7 @@
     };
     const stat = (t, v, cls = '', k = null, bom = 0) => `<div class="stat"><small>${t}</small><div class="v"><b class="${cls}">${v}</b>${k ? delta(k, bom) : ''}</div></div>`;
     $('#resumo').innerHTML =
-      stat('Líquido', brl(liq), liq < 0 ? 'bad' : '', 'liq', 1) +
+      stat('Líquido', brl(liq), comparar ? (liq < 0 ? 'bad' : '') : (liq >= 0 ? 'good' : 'bad'), 'liq', 1) +
       stat('Bruto', brl(bruto), '', 'bruto', 1) +
       stat('Custos', brl(custos), '', 'custos', -1) +
       stat('Energia / combustível', brl(energia), '', 'energia', -1) +
@@ -890,7 +908,7 @@
       stat('Abastecimento por km', km ? brl(energia / km) : '—', '', 'abastKm', -1);
     $('#periodoTxt').textContent = rotuloPeriodo() + (ant
       ? ' · setas comparam ' + pares.length + ' dia(s) equivalente(s) com ' + fmtData(ra[0]) + ' a ' + fmtData(ra[1])
-      : (ra && n ? ' · sem dias equivalentes em ' + fmtData(ra[0]) + ' a ' + fmtData(ra[1]) + ' para comparar' : ''));
+      : (comparar && ra && n ? ' · sem dias equivalentes em ' + fmtData(ra[0]) + ' a ' + fmtData(ra[1]) + ' para comparar' : ''));
 
     if (!n) {
       const ic = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M12 13v5M9.5 15.5h5"/></svg>';
@@ -971,9 +989,14 @@
       </div>`).join('') || '<p class="hint">Nenhum item.</p>';
   }
   function renderCfg() {
+    $('#swComparar').checked = comparar;
     renderCfgList($('#cfgKm'), state.config.perKm, 'perKm');
     renderCfgList($('#cfgFix'), state.config.fixos, 'fixos');
   }
+  $('#swComparar').onchange = e => {
+    comparar = e.target.checked;
+    try { localStorage.setItem(COMP, comparar ? '1' : '0'); } catch (_) {}
+  };
   function onCfgEvent(e) {
     const row = e.target.closest('.cfg'); if (!row) return;
     const lista = state.config[row.dataset.t], i = +row.dataset.i;
