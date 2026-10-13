@@ -252,10 +252,15 @@
     <div class="card">
       <strong>Animações no Histórico</strong>
       <label class="sw" for="swAnim">
-        <span class="hint" style="margin:0">Efeitos visuais de destaque nos indicadores. Desative para uma tela totalmente estática.</span>
+        <span class="hint" style="margin:0">Efeito visual de destaque no valor líquido do Histórico. Desativado, o valor fica estático.</span>
         <input type="checkbox" id="swAnim" role="switch">
         <span class="trilho" aria-hidden="true"></span>
       </label>
+    </div>
+    <div class="card">
+      <strong>Sugira uma melhoria</strong>
+      <p class="hint">Sua opinião ajuda a evoluir o Metrify App. Envie ideias, melhorias ou problemas encontrados.</p>
+      <div class="stack" style="margin-top:10px"><button class="sec" id="btnSugestao">Enviar sugestão</button></div>
     </div>
     <div class="card">
       <strong>Backup dos dados</strong>
@@ -315,6 +320,7 @@
   const ANIM = 'metrify-animacoes';     // preferência (neste aparelho): animações no Histórico, padrão desligado
   let animar = false;
   try { animar = localStorage.getItem(ANIM) === '1'; } catch (_) {}
+  const EMAIL_SUGESTOES = 'viniciusmelosegundo@gmail.com'; // e-mail que recebe as sugestões
   try { comparar = localStorage.getItem(COMP) === '1'; } catch (_) {}
   const PREF = 'metrify-modo';          // lembra a escolha "usar sem conta"
   const FB_VERSAO = '10.12.2';
@@ -1019,6 +1025,12 @@
     renderCfgList($('#cfgKm'), state.config.perKm, 'perKm');
     renderCfgList($('#cfgFix'), state.config.fixos, 'fixos');
   }
+  $('#btnSugestao').onclick = () => {
+    if (!EMAIL_SUGESTOES) return dialog('O canal de sugestões ainda não foi configurado.');
+    const assunto = encodeURIComponent('Sugestão para o Metrify App');
+    const corpo = encodeURIComponent('Olá! Gostaria de sugerir:\n\n\n\n—\nEnviado pelo Metrify App');
+    location.href = 'mailto:' + EMAIL_SUGESTOES + '?subject=' + assunto + '&body=' + corpo;
+  };
   $('#swAnim').onchange = e => {
     animar = e.target.checked;
     try { localStorage.setItem(ANIM, animar ? '1' : '0'); } catch (_) {}
