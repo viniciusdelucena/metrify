@@ -41,7 +41,16 @@
     92%{filter:drop-shadow(0 0 8px rgba(134,239,172,.8)) brightness(1.3);transform:scale(1.05)}
     96%{filter:drop-shadow(0 0 2px rgba(34,197,94,.3)) brightness(1);transform:scale(1)}
   }
-  @media (prefers-reduced-motion:reduce){header .bolt{animation:none}}
+  /* mesmo ciclo e mesmos tempos do raio do topo: o Líquido (verde) pisca junto com ele */
+  .stat b.pisca{animation:faiscaValor 8s ease-in-out infinite}
+  @keyframes faiscaValor{
+    0%,82%,100%{text-shadow:0 0 0 rgba(34,197,94,0);filter:brightness(1)}
+    86%{text-shadow:0 0 10px rgba(134,239,172,.9);filter:brightness(1.45)}
+    89%{text-shadow:0 0 3px rgba(34,197,94,.4);filter:brightness(1)}
+    92%{text-shadow:0 0 8px rgba(134,239,172,.8);filter:brightness(1.3)}
+    96%{text-shadow:0 0 2px rgba(34,197,94,.3);filter:brightness(1)}
+  }
+  @media (prefers-reduced-motion:reduce){header .bolt,.stat b.pisca{animation:none}}
   main{max-width:560px;margin:0 auto}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
         padding:16px;margin:12px 0}
@@ -241,6 +250,14 @@
       </label>
     </div>
     <div class="card">
+      <strong>Animações no Histórico</strong>
+      <label class="sw" for="swAnim">
+        <span class="hint" style="margin:0">Efeitos visuais de destaque nos indicadores. Desative para uma tela totalmente estática.</span>
+        <input type="checkbox" id="swAnim" role="switch">
+        <span class="trilho" aria-hidden="true"></span>
+      </label>
+    </div>
+    <div class="card">
       <strong>Backup dos dados</strong>
       <p class="hint" id="bkHint"></p>
       <div class="stack" style="margin-top:10px">
@@ -295,6 +312,9 @@
   const KEY = 'diario-motorista-v1';   // dados do modo "sem conta" (só neste aparelho)
   const COMP = 'metrify-comparar';      // preferência (neste aparelho): mostrar setas de comparação, padrão desligado
   let comparar = false;
+  const ANIM = 'metrify-animacoes';     // preferência (neste aparelho): animações no Histórico, padrão desligado
+  let animar = false;
+  try { animar = localStorage.getItem(ANIM) === '1'; } catch (_) {}
   try { comparar = localStorage.getItem(COMP) === '1'; } catch (_) {}
   const PREF = 'metrify-modo';          // lembra a escolha "usar sem conta"
   const FB_VERSAO = '10.12.2';
@@ -859,6 +879,11 @@
     return t;
   }
 
+  // Relógio comum para as animações de 8 s: o raio do topo e o Líquido usam a mesma fase e piscam juntos
+  const CICLO_MS = 8000;
+  const faseRaio = () => { try { return -(Math.round(document.timeline.currentTime) % CICLO_MS); } catch (_) { return 0; } };
+  try { $('header .bolt').style.animationDelay = faseRaio() + 'ms'; } catch (_) {}
+
   function renderHist() {
     renderFiltro();
     const r = intervalo();
@@ -894,9 +919,9 @@
       const txt = Math.abs(pct).toLocaleString('pt-BR', { maximumFractionDigits: pct > 100 || pct < -100 ? 0 : 1 }) + '%';
       return `<span class="d ${sobe ? 'up' : 'dn'}${cor}" title="${sobe ? 'Subiu' : 'Caiu'} ${txt} em relação ao período anterior">${seta}${txt}</span>`;
     };
-    const stat = (t, v, cls = '', k = null, bom = 0) => `<div class="stat"><small>${t}</small><div class="v"><b class="${cls}">${v}</b>${k ? delta(k, bom) : ''}</div></div>`;
+    const stat = (t, v, cls = '', k = null, bom = 0) => `<div class="stat"><small>${t}</small><div class="v"><b class="${cls}"${cls.includes('pisca') ? ` style="animation-delay:${faseRaio()}ms"` : ''}>${v}</b>${k ? delta(k, bom) : ''}</div></div>`;
     $('#resumo').innerHTML =
-      stat('Líquido', brl(liq), comparar ? (liq < 0 ? 'bad' : '') : (liq >= 0 ? 'good' : 'bad'), 'liq', 1) +
+      stat('Líquido', brl(liq), comparar ? (liq < 0 ? 'bad' : '') : (liq >= 0 ? (animar ? 'good pisca' : 'good') : 'bad'), 'liq', 1) +
       stat('Bruto', brl(bruto), '', 'bruto', 1) +
       stat('Custos', brl(custos), '', 'custos', -1) +
       stat('Energia / combustível', brl(energia), '', 'energia', -1) +
@@ -990,9 +1015,14 @@
   }
   function renderCfg() {
     $('#swComparar').checked = comparar;
+    $('#swAnim').checked = animar;
     renderCfgList($('#cfgKm'), state.config.perKm, 'perKm');
     renderCfgList($('#cfgFix'), state.config.fixos, 'fixos');
   }
+  $('#swAnim').onchange = e => {
+    animar = e.target.checked;
+    try { localStorage.setItem(ANIM, animar ? '1' : '0'); } catch (_) {}
+  };
   $('#swComparar').onchange = e => {
     comparar = e.target.checked;
     try { localStorage.setItem(COMP, comparar ? '1' : '0'); } catch (_) {}
