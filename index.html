@@ -84,13 +84,13 @@
   .stat{background:var(--bg);border-radius:10px;padding:10px}
   .stat small{color:var(--muted);display:block;font-size:12px}
   .stat b{font-size:18px}
-  .sw{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:10px;cursor:pointer}
-  .sw input{position:absolute;opacity:0;width:1px;height:1px}
-  .sw .trilho{flex:none;width:46px;height:28px;border-radius:999px;background:rgba(127,127,127,.35);position:relative;transition:background .2s}
-  .sw .trilho::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .2s}
-  .sw input:checked + .trilho{background:#22c55e}
-  .sw input:checked + .trilho::after{transform:translateX(18px)}
-  .sw input:focus-visible + .trilho{outline:2px solid var(--text);outline-offset:2px}
+  .chave{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:10px;cursor:pointer}
+  .chave input{position:absolute;opacity:0;width:1px;height:1px}
+  .chave .trilho{flex:none;width:46px;height:28px;border-radius:999px;background:rgba(127,127,127,.35);position:relative;transition:background .2s}
+  .chave .trilho::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .2s}
+  .chave input:checked + .trilho{background:#22c55e}
+  .chave input:checked + .trilho::after{transform:translateX(18px)}
+  .chave input:focus-visible + .trilho{outline:2px solid var(--text);outline-offset:2px}
   .stat .v{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:2px 6px}
   .stat .d{display:inline-flex;align-items:center;gap:2px;padding:1px 6px 1px 4px;border-radius:999px;font-size:11px;font-weight:600;line-height:16px;color:var(--muted);background:rgba(127,127,127,.14)}
   .stat .d.good{color:var(--good);background:rgba(34,197,94,.14)} .stat .d.bad{color:var(--bad);background:rgba(239,68,68,.14)}
@@ -243,7 +243,7 @@
     </div>
     <div class="card">
       <strong>Comparação com o período anterior</strong>
-      <label class="sw" for="swComparar">
+      <label class="chave" for="swComparar">
         <span class="hint" style="margin:0">Exibe, no Histórico, setas que indicam se cada indicador subiu ou caiu em relação ao período anterior.</span>
         <input type="checkbox" id="swComparar" role="switch">
         <span class="trilho" aria-hidden="true"></span>
@@ -251,7 +251,7 @@
     </div>
     <div class="card">
       <strong>Animações no Histórico</strong>
-      <label class="sw" for="swAnim">
+      <label class="chave" for="swAnim">
         <span class="hint" style="margin:0">Efeito visual de destaque no valor líquido do Histórico. Desativado, o valor fica estático.</span>
         <input type="checkbox" id="swAnim" role="switch">
         <span class="trilho" aria-hidden="true"></span>
